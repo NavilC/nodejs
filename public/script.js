@@ -5,6 +5,7 @@ const API_BASE_URL = 'http://localhost:3000/api';
 let currentTab = 'usuarios';
 let editMode = false;
 let currentEditId = null;
+let currentEditType = null;
 
 // Inicialización cuando se carga la página
 document.addEventListener('DOMContentLoaded', function() {
@@ -29,6 +30,14 @@ function setupEventListeners() {
     document.querySelector('.close').addEventListener('click', closeModal);
     document.getElementById('editModal').addEventListener('click', (e) => {
         if (e.target.id === 'editModal') closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const qrModal = document.getElementById('qrModal');
+            if (qrModal && qrModal.style.display === 'block') {
+                qrModal.style.display = 'none';
+            }
+        }
     });
 }
 
@@ -514,6 +523,7 @@ function showEditModal(item, type) {
     title.textContent = `Editar ${type}`;
     currentEditId = item.id;
     editMode = true;
+    currentEditType = type;
     
     let fieldsHTML = '';
     
@@ -613,7 +623,21 @@ function showEditModal(item, type) {
     
     // Cargar opciones para selects en el modal
     if (type === 'pases' || type === 'detalles') {
-        loadSelectOptionsForModal();
+        loadSelectOptionsForModal().then(() => {
+            if (type === 'pases') {
+                const proj = document.getElementById('editPaseProyecto');
+                const usr = document.getElementById('editPaseUsuario');
+                if (proj) proj.value = String(item.idProyecto);
+                if (usr) usr.value = String(item.idUsuarios);
+            } else if (type === 'detalles') {
+                const paseSel = document.getElementById('editDetallePase');
+                const piezaSel = document.getElementById('editDetallePieza');
+                const cant = document.getElementById('editDetalleCantidad');
+                if (paseSel) paseSel.value = String(item.idPaseSalida);
+                if (piezaSel) piezaSel.value = String(item.idDetallePieza);
+                if (cant) cant.value = item.Cantidad;
+            }
+        });
     }
     
     modal.style.display = 'block';
@@ -686,15 +710,16 @@ async function handleEditSubmit(e) {
     const data = Object.fromEntries(formData.entries());
     
     // Convertir números según el tipo
-    if (currentTab === 'proyectos') {
+    const editContext = currentEditType || currentTab;
+    if (editContext === 'proyectos') {
         data['Orden de Venta'] = parseInt(data['Orden de Venta']);
         data.SEC = parseInt(data.SEC);
-    } else if (currentTab === 'piezas') {
+    } else if (editContext === 'piezas') {
         data.cantidad = parseInt(data.cantidad);
-    } else if (currentTab === 'pases') {
+    } else if (editContext === 'pases') {
         data.idProyecto = parseInt(data.idProyecto);
         data.idUsuarios = parseInt(data.idUsuarios);
-    } else if (currentTab === 'detalles') {
+    } else if (editContext === 'detalles') {
         data.idPaseSalida = parseInt(data.idPaseSalida);
         data.idDetallePieza = parseInt(data.idDetallePieza);
         data.Cantidad = parseInt(data.Cantidad);
@@ -704,7 +729,7 @@ async function handleEditSubmit(e) {
         showLoading();
         let endpoint = '';
         
-        switch(currentTab) {
+        switch(editContext) {
             case 'usuarios': endpoint = 'usuarios'; break;
             case 'proyectos': endpoint = 'proyectos'; break;
             case 'piezas': endpoint = 'detalle-pieza'; break;
@@ -715,8 +740,12 @@ async function handleEditSubmit(e) {
         await updateData(`${endpoint}/${currentEditId}`, data);
         closeModal();
         showToast('Registro actualizado exitosamente', 'success');
-        loadData(currentTab);
-        loadSelectOptions(); // Recargar opciones para selects
+        if (editContext === 'pases' || editContext === 'detalles') {
+            loadShippingHistory();
+        } else {
+            loadData(editContext);
+        }
+        loadSelectOptions();
         
     } catch (error) {
         showToast('Error actualizando registro', 'error');
@@ -967,6 +996,11 @@ async function handleShippingSubmit(e) {
         }
         
         showToast('Envío registrado exitosamente', 'success');
+        try {
+            await showPaseQr(paseId);
+        } catch (err) {
+            console.error('Error mostrando QR:', err);
+        }
         clearForm();
         loadShippingHistory();
         
@@ -1083,7 +1117,7 @@ async function loadShippingHistory() {
         }
         
         container.innerHTML = pases.map(pase => `
-            <div class="history-item">
+            <div class="history-item" data-pase-id="${pase.id}" onclick="toggleHistoryDetails(event, ${pase.id})">
                 <div class="history-header">
                     <h4>Pase #${pase.id} - ${pase.proyecto_nombre}</h4>
                     <span class="history-date">${formatDate(pase.created_at)}</span>
@@ -1091,6 +1125,16 @@ async function loadShippingHistory() {
                 <div class="history-details">
                     <p><strong>Usuario:</strong> ${pase.usuario_nombre} (${pase.usuario_rol})</p>
                     <p><strong>Orden de Venta:</strong> ${pase.orden_venta || 'N/A'}</p>
+                </div>
+                <div class="pase-details" id="history-pase-details-${pase.id}" style="display:none">
+                    <h4>📋 Detalles del Pase</h4>
+                    <div id="history-detalles-pase-${pase.id}">
+                        <div class="no-details">Cargando detalles...</div>
+                    </div>
+                    <div class="data-item-actions" style="margin-top:10px">
+                        <button class="btn btn-warning" onclick="event.stopPropagation(); editItem(${pase.id}, 'pases')">Editar Pase</button>
+                        <button class="btn btn-success" onclick="event.stopPropagation(); showPaseQr(${pase.id})">Ver QR</button>
+                    </div>
                 </div>
             </div>
         `).join('');
@@ -1125,4 +1169,85 @@ function formatDate(dateString) {
         hour: '2-digit',
         minute: '2-digit'
     });
+}
+
+// Alternar detalles del pase en historial
+async function toggleHistoryDetails(event, paseId) {
+    const details = document.getElementById(`history-pase-details-${paseId}`);
+    if (!details) return;
+    const isHidden = details.style.display === 'none' || details.style.display === '';
+    if (isHidden) {
+        details.style.display = 'block';
+        await loadHistoryPaseDetalles(paseId);
+    } else {
+        details.style.display = 'none';
+    }
+}
+
+// Cargar detalles para el bloque del historial
+async function loadHistoryPaseDetalles(paseId) {
+    try {
+        const detalles = await fetchData(`pase-salida/${paseId}/detalles`);
+        const container = document.getElementById(`history-detalles-pase-${paseId}`);
+        if (!container) return;
+        if (!detalles || detalles.length === 0) {
+            container.innerHTML = '<div class="no-details">No hay detalles para este pase de salida</div>';
+            return;
+        }
+        container.innerHTML = detalles.map(detalle => `
+            <div class=\"detalle-item\">
+                <div class=\"detalle-info\">
+                    <strong>${detalle.Tipo || detalle.pieza_tipo || 'N/A'} - ${detalle.Marca || detalle.pieza_marca || 'N/A'}</strong><br>
+                    <small>Cantidad: ${detalle.Cantidad} | Stock disponible: ${detalle.stock_cantidad || 'N/A'}</small>
+                </div>
+                <div class=\"detalle-actions\">
+                    <button class=\"btn btn-warning\" onclick=\"editItem(${detalle.id}, 'detalles'); event.stopPropagation();\">Editar</button>
+                    <button class=\"btn btn-danger\" onclick=\"deleteItem(${detalle.id}, 'detalles'); event.stopPropagation();\">Eliminar</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading history detalles:', error);
+        const container = document.getElementById(`history-detalles-pase-${paseId}`);
+        if (container) container.innerHTML = '<div class="no-details">Error cargando detalles</div>';
+    }
+}
+
+// Mostrar modal con QR para un pase
+async function showPaseQr(paseId) {
+    // Obtener datos del pase y sus detalles
+    const pase = await fetchData(`pase-salida/${paseId}`);
+    const detalles = await fetchData(`pase-salida/${paseId}/detalles`);
+
+    // Construir payload para QR
+    const qrPayload = {
+        id: pase.id,
+        proyecto: pase.proyecto_nombre,
+        ordenVenta: pase.orden_venta,
+        usuario: pase.usuario_nombre,
+        rol: pase.usuario_rol,
+        fecha: pase.created_at,
+        detalles: (detalles || []).map(d => ({ tipo: d.Tipo || d.pieza_tipo, marca: d.Marca || d.pieza_marca, cantidad: d.Cantidad }))
+    };
+
+    // Generar un QR como data URL usando Google Chart API (sin dependencia)
+    const qrText = encodeURIComponent(JSON.stringify(qrPayload));
+    const size = 220;
+    const qrUrl = `https://chart.googleapis.com/chart?cht=qr&chs=${size}x${size}&chl=${qrText}`;
+
+    const body = document.getElementById('qrModalBody');
+    body.innerHTML = `
+        <div class="qr-box">
+            <img src="${qrUrl}" alt="QR Pase ${pase.id}" width="${size}" height="${size}">
+        </div>
+        <div class="qr-details">
+            <p><strong>Pase:</strong> #${pase.id}</p>
+            <p><strong>Proyecto:</strong> ${pase.proyecto_nombre} (OV: ${pase.orden_venta || 'N/A'})</p>
+            <p><strong>Usuario:</strong> ${pase.usuario_nombre} (${pase.usuario_rol})</p>
+            <p><strong>Fecha:</strong> ${formatDate(pase.created_at)}</p>
+        </div>
+    `;
+
+    const modal = document.getElementById('qrModal');
+    modal.style.display = 'block';
 }
