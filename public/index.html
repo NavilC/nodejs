@@ -130,6 +130,20 @@
             </div>
         </div>
 
+        <!-- Modal para mostrar QR del pase -->
+        <div id="qrModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="document.getElementById('qrModal').style.display='none'">&times;</span>
+                <h2>QR del Pase</h2>
+                <div id="qrModalBody" class="qr-modal-body">
+                    <!-- QR y detalles se llenan dinámicamente -->
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('qrModal').style.display='none'">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Loading indicator -->
         <div id="loading" class="loading hidden">
             <div class="spinner"></div>
