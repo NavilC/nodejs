@@ -21,6 +21,9 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Servir archivos estáticos
+app.use(express.static('public'));
+
 // Routes
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/proyectos', proyectosRoutes);

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRUD API - Sistema de Gestión</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏗️ Sistema de Gestión de Proyectos y Pases de Salida</h1>
+            <p>CRUD API con Node.js y Express</p>
+        </header>
+
+
+        <!-- Formulario de Envío de Piezas Terminadas -->
+        <div class="shipping-form">
+            <!-- Header del Formulario -->
+            <div class="form-header">
+                <div class="header-left">
+                    <div class="form-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="form-code">EJP-F-015</div>
+                </div>
+                <div class="form-title">
+                    <h1>FORMULARIO DE ENVÍO DE PIEZAS TERMINADAS</h1>
+                    <p>Complete todos los campos para registrar el envío de piezas terminadas a proyectos</p>
+                </div>
+            </div>
+
+            <!-- Formulario Principal -->
+            <form id="shippingForm">
+                <!-- Información del Proyecto -->
+                <div class="form-section">
+                    <div class="section-header">
+                        <div class="section-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A1.5 1.5 0 0 0 18.54 8H16c-.8 0-1.54.37-2.01.99L12 11l-1.99-2.01A2.5 2.5 0 0 0 8 8H5.46c-.8 0-1.54.37-2.01.99L.91 16.5H3.5V22h4v-6h4v6h4v-6h4v6h4z"/>
+                            </svg>
+                        </div>
+                        <h2>Información del Proyecto</h2>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="proyectoNombre">Nombre de Proyecto</label>
+                            <input type="text" id="proyectoNombre" name="proyectoNombre" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="ordenVenta">Orden de Venta</label>
+                            <input type="text" id="ordenVenta" name="ordenVenta" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="ovSec">N° OV / SEC</label>
+                            <input type="text" id="ovSec" name="ovSec" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="fecha">Fecha</label>
+                            <input type="date" id="fecha" name="fecha" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detalle de Piezas -->
+                <div class="form-section">
+                    <div class="section-header">
+                        <div class="section-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
+                        </div>
+                        <h2>Detalle de Piezas</h2>
+                    </div>
+
+                    <!-- Tabla de Piezas -->
+                    <div class="parts-table">
+                        <div class="table-header">
+                            <div class="header-cell">Cantidad de Piezas</div>
+                            <div class="header-cell">Unidad</div>
+                            <div class="header-cell">Descripción</div>
+                            <div class="header-cell">Marca</div>
+                            <div class="header-cell">Acción</div>
+                        </div>
+                        
+                        <div id="partsContainer">
+                            <!-- Las filas de piezas se agregarán dinámicamente -->
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn-add-part" onclick="addPartRow()">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                        </svg>
+                        Agregar otra pieza
+                    </button>
+                </div>
+
+                <!-- Botones de Acción -->
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="clearForm()">Limpiar Formulario</button>
+                    <button type="submit" class="btn btn-primary">Registrar Envío</button>
+                </div>
+            </form>
+
+            <!-- Historial de Envíos -->
+            <div class="shipping-history">
+                <h3>📋 Historial de Envíos</h3>
+                <div id="shippingHistory" class="history-list"></div>
+            </div>
+        </div>
+
+        <!-- Modal para editar -->
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2 id="modalTitle">Editar</h2>
+                <form id="editForm">
+                    <div id="editFormFields"></div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Actualizar</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Loading indicator -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Cargando...</p>
+        </div>
+
+        <!-- Toast notifications -->
+        <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
