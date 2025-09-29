@@ -103,6 +103,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('PUT /api/pase-salida-detalle/' + id + ' body:', req.body);
     const { idPaseSalida, idDetallePieza, Cantidad } = req.body;
     
     // Validation

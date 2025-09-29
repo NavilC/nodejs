@@ -481,6 +481,24 @@ async function submitData(endpoint, data) {
     return await response.json();
 }
 
+// Update (PUT) data to API
+async function updateData(endpoint, id, data) {
+    const response = await fetch(`${API_BASE_URL}/${endpoint}/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Error en la petición PUT');
+    }
+
+    return await response.json();
+}
+
 // Editar item
 async function editItem(id, type) {
     try {
@@ -1070,7 +1088,6 @@ async function loadShippingHistory() {
     try {
         const pases = await fetchData('pase-salida');
         const container = document.getElementById('shippingHistory');
-        
         if (!pases || pases.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
@@ -1081,23 +1098,241 @@ async function loadShippingHistory() {
             `;
             return;
         }
-        
         container.innerHTML = pases.map(pase => `
-            <div class="history-item">
-                <div class="history-header">
-                    <h4>Pase #${pase.id} - ${pase.proyecto_nombre}</h4>
-                    <span class="history-date">${formatDate(pase.created_at)}</span>
-                </div>
-                <div class="history-details">
-                    <p><strong>Usuario:</strong> ${pase.usuario_nombre} (${pase.usuario_rol})</p>
-                    <p><strong>Orden de Venta:</strong> ${pase.orden_venta || 'N/A'}</p>
-                </div>
+            <div class="historial-item" data-id="${pase.id}">
+                <h3>Pase #${pase.id} - ${pase.proyecto_nombre}</h3>
+                <div class="fecha">${formatDate(pase.created_at)}</div>
+                <div class="detalle"><strong>Usuario:</strong> ${pase.usuario_nombre} (${pase.usuario_rol})</div>
+                <div class="detalle"><strong>Orden de Venta:</strong> ${pase.orden_venta || 'N/A'}</div>
+                <button class="btn-modificar" onclick="toggleEditarEnvio(${pase.id})">Modificar</button>
+                <form class="form-editar-envio" id="form-editar-envio-${pase.id}" style="display:none; margin-top:18px;">
+                    <div class="form-group">
+                        <label>Proyecto</label>
+                        <input type="text" name="editProyecto" value="${pase.proyecto_nombre || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Orden de Venta</label>
+                        <input type="text" name="editOrdenVenta" value="${pase.orden_venta || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Usuario</label>
+                        <input type="text" name="editUsuario" value="${pase.usuario_nombre || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha</label>
+                        <input type="date" name="editFecha" value="${pase.created_at ? (new Date(pase.created_at)).toISOString().split('T')[0] : ''}" required>
+                    </div>
+                        <div class="detalles-area" id="detalles-area-${pase.id}" style="display:none; margin-top:12px;"></div>
+                        <div style="text-align:center; margin-top:12px;">
+                            <button type="submit" class="btn-modificar">Guardar Cambios</button>
+                            <button type="button" class="btn-modificar" style="background:#aaa; margin-left:10px;" onclick="toggleEditarEnvio(${pase.id},true)">Cancelar</button>
+                        </div>
+                    </form>
             </div>
         `).join('');
-        
     } catch (error) {
         console.error('Error loading shipping history:', error);
     }
+// Función para modificar un envío (básica: solo muestra alerta, puedes expandirla)
+// Mostrar/ocultar formulario de edición en el card
+let cardEditandoId = null;
+function toggleEditarEnvio(id, cancelar = false) {
+    // Ocultar cualquier otro formulario abierto
+    document.querySelectorAll('.form-editar-envio').forEach(f => f.style.display = 'none');
+    if (cardEditandoId === id || cancelar) {
+        cardEditandoId = null;
+        return;
+    }
+    const form = document.getElementById('form-editar-envio-' + id);
+    if (form) {
+        form.style.display = 'block';
+        cardEditandoId = id;
+        // cargar detalles al abrir
+        loadDetallesForCard(id);
+        form.onsubmit = async function(e) {
+            e.preventDefault();
+            try {
+                showLoading();
+                // Leer valores del formulario
+                const proyectoNombre = form.querySelector('input[name="editProyecto"]').value.trim();
+                const ordenVenta = form.querySelector('input[name="editOrdenVenta"]').value.trim();
+                const usuarioNombre = form.querySelector('input[name="editUsuario"]').value.trim();
+                const fechaVal = form.querySelector('input[name="editFecha"]').value;
+
+                if (!proyectoNombre || !usuarioNombre) {
+                    showToast('Proyecto y Usuario son obligatorios', 'warning');
+                    return;
+                }
+
+                // Buscar o crear proyecto
+                let proyectos = await fetchData('proyectos');
+                let proyecto = proyectos.find(p => p.Nombre === proyectoNombre || p['Orden de Venta'] == ordenVenta);
+                let proyectoId;
+                if (proyecto) {
+                    proyectoId = proyecto.id;
+                } else {
+                    // Crear proyecto mínimo requerido por API
+                    const ordenNum = ordenVenta ? parseInt(ordenVenta) : 0;
+                    const resp = await submitData('proyectos', { 'Orden de Venta': ordenNum, Nombre: proyectoNombre, SEC: 0 });
+                    proyectoId = resp.data.id || resp.data; // manejar posible estructura
+                }
+
+                // Buscar o crear usuario
+                let usuarios = await fetchData('usuarios');
+                let usuario = usuarios.find(u => u.Nombre === usuarioNombre);
+                let usuarioId;
+                if (usuario) {
+                    usuarioId = usuario.id;
+                } else {
+                    const respU = await submitData('usuarios', { Nombre: usuarioNombre, Rol: 'Usuario' });
+                    usuarioId = respU.data.id || respU.data;
+                }
+
+                // Hacer PUT para actualizar pase de salida
+                await updateData('pase-salida', id, { idProyecto: proyectoId, idUsuarios: usuarioId });
+                // Actualizar cantidades modificadas en detalles del card
+                await updateDetallesOnSaveCard(id);
+                showToast('Envío actualizado correctamente', 'success');
+                cardEditandoId = null;
+                loadShippingHistory();
+            } catch (error) {
+                console.error('Error updating pase:', error);
+                showToast('Error actualizando envío: ' + (error.message || ''), 'error');
+            } finally {
+                hideLoading();
+            }
+        };
+    }
+}
+
+// Cargar detalles para el card dentro del formulario (se muestran cuando se abre editar)
+async function loadDetallesForCard(paseId) {
+    const cont = document.getElementById('detalles-area-' + paseId);
+    if (!cont) return;
+    cont.innerHTML = 'Cargando piezas...';
+    cont.style.display = 'block';
+    try {
+        const res = await fetch(`${API_BASE_URL}/pase-salida/${paseId}/detalles`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        const detalles = json.data || json;
+        renderDetallesForCard(cont, paseId, detalles);
+    } catch (err) {
+        console.error(err);
+        cont.innerHTML = '<div>Error cargando piezas: '+err.message+'</div>';
+    }
+}
+
+function renderDetallesForCard(container, paseId, detalles) {
+    container.innerHTML = '';
+    const list = document.createElement('div');
+    list.className = 'detalles-list';
+    if (!detalles || detalles.length === 0) list.innerHTML = '<div class="no-details">No hay piezas en este pase</div>';
+    else {
+        detalles.forEach(d => {
+            const row = document.createElement('div');
+            row.className = 'detalle-row';
+
+            const info = document.createElement('div'); info.className = 'detalle-info';
+            info.textContent = `${d.pieza_tipo || d.Tipo || 'Pieza'} - ${d.pieza_marca || d.Marca || ''}`;
+
+            const qtyInput = document.createElement('input');
+            qtyInput.type = 'number'; qtyInput.min = '1'; qtyInput.value = (d.Cantidad != null ? d.Cantidad : 1);
+            qtyInput.dataset.original = String(d.Cantidad != null ? d.Cantidad : 1);
+            qtyInput.dataset.detalleId = String(d.id);
+
+            const actions = document.createElement('div'); actions.className = 'detalle-actions';
+            const del = document.createElement('button'); del.className = 'btn btn-danger'; del.textContent = 'Eliminar';
+            del.onclick = async () => {
+                if (!confirm('Eliminar esta pieza del pase?')) return;
+                try {
+                    const r = await fetch(`${API_BASE_URL}/pase-salida-detalle/${d.id}`, { method: 'DELETE' });
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    showToast('Pieza eliminada', 'success');
+                    // recargar detalles
+                    loadDetallesForCard(paseId);
+                } catch (e) { showToast('Error: '+e.message, 'error'); }
+            };
+
+            actions.appendChild(del);
+            row.appendChild(info);
+            row.appendChild(qtyInput);
+            row.appendChild(actions);
+            list.appendChild(row);
+        });
+    }
+
+    // agregar form para nueva pieza (simple)
+    const addForm = document.createElement('form'); addForm.className = 'add-piece-form';
+    const inTipo = document.createElement('input'); inTipo.placeholder = 'Tipo de pieza'; inTipo.required = true;
+    const inMarca = document.createElement('input'); inMarca.placeholder = 'Marca'; inMarca.required = true;
+    const inCant = document.createElement('input'); inCant.type = 'number'; inCant.min='1'; inCant.placeholder='Cantidad'; inCant.required = true;
+    const addBtn = document.createElement('button'); addBtn.type='submit'; addBtn.className='btn btn-primary'; addBtn.textContent='Agregar pieza';
+    addForm.appendChild(inTipo); addForm.appendChild(inMarca); addForm.appendChild(inCant); addForm.appendChild(addBtn);
+    addForm.onsubmit = async (e) => {
+        e.preventDefault(); addBtn.disabled = true;
+        try {
+            // buscar o crear detalle-pieza
+            const piezasRes = await fetch(`${API_BASE_URL}/detalle-pieza`);
+            if (!piezasRes.ok) throw new Error('HTTP ' + piezasRes.status);
+            const piezasJson = await piezasRes.json();
+            const piezas = piezasJson.data || piezasJson;
+            let pieza = piezas.find(p=> p.Tipo === inTipo.value && p.Marca === inMarca.value);
+            let piezaId;
+            if (pieza) piezaId = pieza.id; else {
+                const createResp = await fetch(`${API_BASE_URL}/detalle-pieza`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ cantidad: parseInt(inCant.value), Tipo: inTipo.value, Marca: inMarca.value }) });
+                if (!createResp.ok) throw new Error('HTTP ' + createResp.status);
+                const createJson = await createResp.json(); piezaId = createJson.data ? createJson.data.id : createJson.data;
+            }
+            // crear pase-salida-detalle
+            const createDetalle = await fetch(`${API_BASE_URL}/pase-salida-detalle`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idPaseSalida: paseId, idDetallePieza: piezaId, Cantidad: parseInt(inCant.value) }) });
+            if (!createDetalle.ok) throw new Error('HTTP ' + createDetalle.status);
+            showToast('Pieza añadida', 'success');
+            inTipo.value=''; inMarca.value=''; inCant.value='';
+            loadDetallesForCard(paseId);
+        } catch (err) { showToast('Error: '+err.message, 'error'); } finally { addBtn.disabled = false; }
+    };
+
+    container.appendChild(list);
+    container.appendChild(addForm);
+}
+
+// Actualiza todas las cantidades modificadas en un card (usa inputs con data-detalle-id)
+async function updateDetallesOnSaveCard(paseId) {
+    const cont = document.getElementById('detalles-area-' + paseId);
+    if (!cont) return;
+    const inputs = Array.from(cont.querySelectorAll('input[type="number"][data-detalle-id]'));
+    const updates = [];
+    for (const inp of inputs) {
+        const orig = parseInt(inp.dataset.original || '0');
+        const now = parseInt(inp.value) || 0;
+        if (now !== orig) updates.push({ id: inp.dataset.detalleId, Cantidad: now });
+    }
+    if (updates.length === 0) return;
+    // ejecutar secuencialmente para compatibilidad
+    if (updates.length === 0) return;
+    showToast(`Actualizando ${updates.length} detalle(s)...`, 'success');
+    for (const u of updates) {
+        const inp = cont.querySelector(`input[data-detalle-id="${u.id}"]`);
+        const idDetallePieza = inp ? parseInt(inp.dataset.detallePiezaId || '0') : 0;
+        const payload = { idPaseSalida: parseInt(paseId), idDetallePieza: idDetallePieza, Cantidad: parseInt(u.Cantidad) };
+        console.log('PUT detalle (card)', u.id, payload);
+        try {
+            const r = await fetch(`${API_BASE_URL}/pase-salida-detalle/${u.id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            const text = await r.text().catch(()=>null);
+            let body = null; try { body = text ? JSON.parse(text) : null; } catch(e) { body = text; }
+            if (!r.ok) { showToast('Error actualizando detalle: ' + r.status + ' ' + (body && body.message ? body.message : JSON.stringify(body)), 'error'); console.error('PUT detalle fallo', u.id, payload, body); throw new Error('HTTP ' + r.status); }
+            if (inp) inp.dataset.original = String(u.Cantidad);
+        } catch (err) {
+            console.error('Error updating detalle (card):', err);
+            throw err;
+        }
+    }
+    await loadDetallesForCard(paseId);
+    showToast('Detalles actualizados correctamente', 'success');
+    // recargar detalles
+    await loadDetallesForCard(paseId);
+}
 }
 
 // Limpiar formulario

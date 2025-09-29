@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Historial simple - sin CSS</title>
+  <link rel="stylesheet" href="historial-simple.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Historial de Envíos</h1>
+    <p class="small-note"><a href="index.html">Volver al formulario</a></p>
+
+    <div id="container"></div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    const API_BASE_URL = 'http://localhost:3000/api';
+
+    async function fetchData(endpoint) {
+      const res = await fetch(API_BASE_URL + '/' + endpoint);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      return json.data || json;
+    }
+
+    async function postData(endpoint, data) {
+      const res = await fetch(API_BASE_URL + '/' + endpoint, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(()=>({message:'unknown'}));
+        throw new Error(err.message || 'Error POST');
+      }
+      return await res.json();
+    }
+
+    async function putData(endpoint, id, data) {
+      const res = await fetch(API_BASE_URL + '/' + endpoint + '/' + id, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(()=>({message:'unknown'}));
+        throw new Error(err.message || 'Error PUT');
+      }
+      return await res.json();
+    }
+
+    function el(tag, text) { const n = document.createElement(tag); if (text) n.textContent = text; return n; }
+
+    async function load() {
+      const container = document.getElementById('container');
+      container.innerHTML = 'Cargando...';
+      try {
+        const pases = await fetchData('pase-salida');
+        if (!pases || pases.length === 0) {
+          container.innerHTML = '<p>No hay envíos registrados</p>';
+          return;
+        }
+        container.innerHTML = '';
+        pases.forEach(pase => {
+          const card = document.createElement('div');
+          card.style.border = '1px solid #ccc';
+          card.style.padding = '8px';
+          card.style.margin = '8px 0';
+
+          const h = el('div'); h.textContent = `Pase #${pase.id} - ${pase.proyecto_nombre || ''}`;
+          const d1 = el('div', 'Fecha: ' + (pase.created_at ? new Date(pase.created_at).toLocaleString() : 'N/A'));
+          const d2 = el('div', 'Usuario: ' + (pase.usuario_nombre || 'N/A'));
+          const d3 = el('div', 'Orden de Venta: ' + (pase.orden_venta || 'N/A'));
+
+          const btn = el('button','Modificar');
+          btn.onclick = () => toggleForm(pase.id);
+
+          // botón de editar piezas eliminado (la sección se abre al hacer 'Modificar')
+
+          const form = document.createElement('form');
+          form.id = 'form-'+pase.id;
+          form.style.display = 'none';
+          form.style.marginTop = '8px';
+
+          const inProyecto = document.createElement('input'); inProyecto.name='proyecto'; inProyecto.placeholder='Nombre proyecto'; inProyecto.value = pase.proyecto_nombre || '';
+          const inOrden = document.createElement('input'); inOrden.name='orden'; inOrden.placeholder='Orden de Venta'; inOrden.value = pase.orden_venta || '';
+          const inUsuario = document.createElement('input'); inUsuario.name='usuario'; inUsuario.placeholder='Nombre usuario'; inUsuario.value = pase.usuario_nombre || '';
+          const inFecha = document.createElement('input'); inFecha.type='date'; inFecha.name='fecha';
+          if (pase.created_at) inFecha.value = new Date(pase.created_at).toISOString().split('T')[0];
+
+          const save = el('button','Guardar'); save.type='submit';
+          const cancel = el('button','Cancelar'); cancel.type='button'; cancel.onclick = (e)=>{ e.preventDefault(); form.style.display='none'; };
+
+          form.appendChild(el('div', 'Proyecto:')); form.appendChild(inProyecto);
+          form.appendChild(el('div', 'Orden de Venta:')); form.appendChild(inOrden);
+          form.appendChild(el('div', 'Usuario:')); form.appendChild(inUsuario);
+          form.appendChild(el('div', 'Fecha (no se envía al servidor):')); form.appendChild(inFecha);
+          form.appendChild(save); form.appendChild(cancel);
+
+          form.onsubmit = async (e)=>{
+            e.preventDefault();
+            try {
+              save.disabled = true;
+              // buscar proyecto
+              const proyectos = await fetchData('proyectos');
+              let proyecto = proyectos.find(p=>p.Nombre === inProyecto.value || String(p['Orden de Venta']) === inOrden.value);
+              let proyectoId;
+              if (proyecto) proyectoId = proyecto.id;
+              else {
+                const resp = await postData('proyectos', { 'Orden de Venta': inOrden.value ? parseInt(inOrden.value):0, Nombre: inProyecto.value || 'Sin nombre', SEC: 0 });
+                proyectoId = resp.data ? resp.data.id : resp.data;
+              }
+              // buscar usuario
+              const usuarios = await fetchData('usuarios');
+              let usuario = usuarios.find(u=>u.Nombre === inUsuario.value);
+              let usuarioId;
+              if (usuario) usuarioId = usuario.id;
+              else {
+                const r = await postData('usuarios', { Nombre: inUsuario.value || 'Usuario', Rol: 'Usuario' });
+                usuarioId = r.data ? r.data.id : r.data;
+              }
+              // PUT pase
+              await putData('pase-salida', pase.id, { idProyecto: proyectoId, idUsuarios: usuarioId });
+              // Actualizar cantidades de detalles que hayan cambiado
+              await updateDetallesOnSave(pase.id);
+              showToast('Actualizado correctamente', 'success');
+              load();
+            } catch(err){
+              showToast('Error: '+err.message, 'error');
+            } finally { save.disabled = false; }
+          };
+
+          // Contenedor para detalles (piezas)
+          const detallesContainer = document.createElement('div');
+          detallesContainer.id = 'detalles-container-' + pase.id;
+          detallesContainer.style.marginTop = '8px';
+          detallesContainer.style.display = 'none';
+
+          card.appendChild(h); card.appendChild(d1); card.appendChild(d2); card.appendChild(d3); card.appendChild(btn); card.appendChild(form); card.appendChild(detallesContainer);
+          container.appendChild(card);
+
+          function toggleForm(pid){
+            // Cerrar otros formularios y detalles abiertos
+            document.querySelectorAll('form[id^="form-"]').forEach(ff => { if (ff.id !== 'form-'+pid) ff.style.display = 'none'; });
+            document.querySelectorAll('[id^="detalles-container-"]').forEach(dc => { if (dc.id !== 'detalles-container-'+pid) dc.style.display = 'none'; });
+
+            const f = document.getElementById('form-'+pid);
+            const cont = document.getElementById('detalles-container-' + pid);
+            if (!f) return;
+            const willOpen = (f.style.display === 'none');
+            // Alternar formulario
+            f.style.display = willOpen ? 'block' : 'none';
+            // Si se abre el formulario, asegurarse de que también se abran las piezas
+            if (willOpen) {
+              // Si el contenedor de detalles está vacío o cerrado, cargarlo
+              if (cont) {
+                if (cont.style.display !== 'block') {
+                  // llamar a la función pública toggleDetalles para cargar y mostrar
+                  toggleDetalles(pid);
+                }
+              }
+            } else {
+              // si se cierra el formulario, cerrar también detalles
+              if (cont) cont.style.display = 'none';
+            }
+          }
+        });
+
+        // Toggle y carga de detalles (piezas) para un pase
+        async function toggleDetalles(paseId) {
+          const cont = document.getElementById('detalles-container-' + paseId);
+          if (!cont) return;
+          if (cont.style.display === 'block') { cont.style.display = 'none'; return; }
+          cont.innerHTML = 'Cargando piezas...';
+          cont.style.display = 'block';
+          try {
+            // Intentar obtener detalles via /pase-salida/:id/detalles
+            const res = await fetch(API_BASE_URL + '/pase-salida/' + paseId + '/detalles');
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const json = await res.json();
+            const detalles = json.data || json;
+            renderDetalles(cont, paseId, detalles);
+          } catch (err) {
+            console.error(err);
+            cont.innerHTML = '<div>Error cargando piezas: '+err.message+'</div>';
+          }
+        }
+
+        function renderDetalles(container, paseId, detalles) {
+          container.innerHTML = '';
+          const list = document.createElement('div');
+          if (!detalles || detalles.length === 0) list.innerHTML = '<div>No hay piezas en este pase</div>';
+          else {
+            detalles.forEach(d => {
+              const row = document.createElement('div');
+              row.style.borderTop = '1px solid #ddd';
+              row.style.padding = '6px 0';
+
+              // Info de la pieza
+              const info = document.createElement('span');
+              info.textContent = `${d.pieza_tipo || d.Tipo || 'Pieza'} - ${d.pieza_marca || d.Marca || ''}`;
+
+              // Input para editar cantidad (se guardará junto con el pase)
+              const qtyInput = document.createElement('input');
+              qtyInput.type = 'number';
+              qtyInput.min = '1';
+              qtyInput.value = (d.Cantidad != null ? d.Cantidad : 1);
+              qtyInput.style.marginLeft = '8px';
+              qtyInput.style.width = '80px';
+              // Marcar cantidad original y referencias para detectar cambios al guardar
+              qtyInput.dataset.original = String(d.Cantidad != null ? d.Cantidad : 1);
+              qtyInput.dataset.detalleId = String(d.id);
+              qtyInput.dataset.detallePiezaId = String(d.idDetallePieza);
+
+              // Botón eliminar sigue disponible
+              const del = document.createElement('button'); del.textContent = 'Eliminar'; del.style.marginLeft = '8px';
+              del.onclick = async () => {
+                if (!confirm('Eliminar esta pieza del pase?')) return;
+                try {
+                  const r = await fetch(API_BASE_URL + '/pase-salida-detalle/' + d.id, { method: 'DELETE' });
+                  if (!r.ok) throw new Error('HTTP ' + r.status);
+                  showToast('Eliminado', 'success');
+                  toggleDetalles(paseId); // recargar
+                } catch(e){ showToast('Error: '+e.message, 'error'); }
+              };
+
+              row.appendChild(info);
+              row.appendChild(qtyInput);
+              row.appendChild(del);
+              list.appendChild(row);
+            });
+          }
+
+          // Form para añadir nueva pieza
+          const addForm = document.createElement('form');
+          addForm.style.marginTop = '8px';
+          const inTipo = document.createElement('input'); inTipo.placeholder='Tipo de pieza'; inTipo.required=true;
+          const inMarca = document.createElement('input'); inMarca.placeholder='Marca'; inMarca.required=true;
+          const inCant = document.createElement('input'); inCant.type='number'; inCant.min='1'; inCant.placeholder='Cantidad'; inCant.required=true;
+          const addBtn = document.createElement('button'); addBtn.textContent = 'Agregar pieza'; addBtn.type='submit';
+          addForm.appendChild(document.createTextNode('Agregar pieza: '));
+          addForm.appendChild(inTipo); addForm.appendChild(inMarca); addForm.appendChild(inCant); addForm.appendChild(addBtn);
+
+          addForm.onsubmit = async (e) => {
+            e.preventDefault();
+            try {
+              addBtn.disabled = true;
+              // Buscar o crear detalle-pieza
+              const piezasRes = await fetch(API_BASE_URL + '/detalle-pieza');
+              if (!piezasRes.ok) throw new Error('HTTP ' + piezasRes.status);
+              const piezasJson = await piezasRes.json();
+              const piezas = piezasJson.data || piezasJson;
+              let pieza = piezas.find(p=> p.Tipo === inTipo.value && p.Marca === inMarca.value);
+              let piezaId;
+              if (pieza) piezaId = pieza.id;
+              else {
+                const createResp = await fetch(API_BASE_URL + '/detalle-pieza', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ cantidad: parseInt(inCant.value), Tipo: inTipo.value, Marca: inMarca.value }) });
+                if (!createResp.ok) throw new Error('HTTP ' + createResp.status);
+                const createJson = await createResp.json();
+                piezaId = createJson.data ? createJson.data.id : createJson.data;
+              }
+              // Crear pase-salida-detalle
+              const createDetalle = await fetch(API_BASE_URL + '/pase-salida-detalle', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idPaseSalida: paseId, idDetallePieza: piezaId, Cantidad: parseInt(inCant.value) }) });
+              if (!createDetalle.ok) throw new Error('HTTP ' + createDetalle.status);
+              showToast('Pieza añadida', 'success');
+              inTipo.value=''; inMarca.value=''; inCant.value='';
+              toggleDetalles(paseId);
+            } catch (err) {
+              showToast('Error: '+err.message, 'error');
+            } finally { addBtn.disabled = false; }
+          };
+
+          container.appendChild(list);
+          container.appendChild(addForm);
+        }
+      } catch (e) {
+        console.error(e);
+        document.getElementById('container').innerHTML = '<p>Error cargando historial: '+e.message+'</p>';
+      }
+    }
+
+    load();
+
+    // Simple toast implementation (para esta página)
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+      const node = document.createElement('div');
+      node.className = 'toast ' + type;
+      node.textContent = message;
+      container.appendChild(node);
+      // animar
+      requestAnimationFrame(()=> node.classList.add('show'));
+      // eliminar después de 3s
+      setTimeout(()=>{
+        node.classList.remove('show');
+        setTimeout(()=> container.removeChild(node), 300);
+      }, 3000);
+    }
+
+    // Actualiza todas las cantidades modificadas de los detalles para un pase
+    async function updateDetallesOnSave(paseId) {
+      const cont = document.getElementById('detalles-container-' + paseId);
+      if (!cont) return;
+      // Buscar inputs numéricos dentro del contenedor que tengan dataset.detalleId
+      const inputs = Array.from(cont.querySelectorAll('input[type="number"][data-detalle-id]'));
+      const updates = [];
+      for (const inp of inputs) {
+        const orig = parseInt(inp.dataset.original || '0');
+        const now = parseInt(inp.value) || 0;
+        if (now !== orig) {
+          const detalleId = inp.dataset.detalleId;
+          const detallePiezaId = inp.dataset.detallePiezaId;
+          if (!detalleId || !detallePiezaId) continue;
+          if (now <= 0) { showToast('La cantidad debe ser mayor que 0', 'warning'); return; }
+          updates.push({ id: detalleId, Cantidad: now, detallePiezaId: detallePiezaId });
+        }
+      }
+      if (updates.length === 0) return; // nada que hacer
+      showToast(`Actualizando ${updates.length} detalle(s)...`, 'success');
+      // Ejecutar los PUTs secuencialmente para mayor compatibilidad con el servidor
+      for (const u of updates) {
+        // enviar payload completo requerido por la API (asegurar números)
+        const payload = { idPaseSalida: parseInt(paseId), idDetallePieza: parseInt(u.detallePiezaId), Cantidad: parseInt(u.Cantidad) };
+        console.log('PUT detalle', u.id, payload);
+        try {
+          const r = await fetch(API_BASE_URL + '/pase-salida-detalle/' + u.id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+          const text = await r.text().catch(()=>null);
+          let body = null;
+          try { body = text ? JSON.parse(text) : null; } catch(e) { body = text; }
+          if (!r.ok) {
+            showToast('Error actualizando detalle: ' + (r.status) + ' ' + (body && body.message ? body.message : JSON.stringify(body)), 'error');
+            console.error('PUT detalle fallo', u.id, payload, body);
+            throw new Error('HTTP ' + r.status + ' - ' + JSON.stringify(body));
+          }
+          // Si todo bien, actualizar data-original del input
+          const inp = cont.querySelector(`input[data-detalle-id="${u.id}"]`);
+          if (inp) inp.dataset.original = String(u.Cantidad);
+        } catch(err) {
+          console.error('Error updating detalle PUT:', err);
+          throw err; // detener procesamiento y mostrar error
+        }
+      }
+      // recargar detalles
+      await toggleDetalles(paseId);
+      showToast('Detalles actualizados correctamente', 'success');
+    }
+  </script>
+</body>
+</html>
