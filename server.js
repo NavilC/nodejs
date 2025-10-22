@@ -30,6 +30,8 @@ app.use('/api/proyectos', proyectosRoutes);
 app.use('/api/detalle-pieza', detallePiezaRoutes);
 app.use('/api/pase-salida', paseSalidaRoutes);
 app.use('/api/pase-salida-detalle', paseSalidaDetalleRoutes);
+const authRoutes = require('./routes/auth');
+app.use('/api/auth', authRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

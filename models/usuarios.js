@@ -5,6 +5,7 @@ class Usuario {
     this.id = data.id;
     this.Nombre = data.Nombre;
     this.Rol = data.Rol;
+    this.password = data.password;
     this.created_at = data.created_at;
     this.updated_at = data.updated_at;
   }
@@ -42,10 +43,10 @@ class Usuario {
   static async create(data) {
     const db = getDatabase();
     return new Promise((resolve, reject) => {
-      const { Nombre, Rol } = data;
-      const sql = 'INSERT INTO usuarios (Nombre, Rol) VALUES (?, ?)';
+      const { Nombre, Rol, password } = data;
+      const sql = 'INSERT INTO usuarios (Nombre, Rol, password) VALUES (?, ?, ?)';
       
-      db.run(sql, [Nombre, Rol], function(err) {
+      db.run(sql, [Nombre, Rol, password || null], function(err) {
         if (err) {
           reject(err);
         } else {
@@ -58,10 +59,18 @@ class Usuario {
   static async update(id, data) {
     const db = getDatabase();
     return new Promise((resolve, reject) => {
-      const { Nombre, Rol } = data;
-      const sql = 'UPDATE usuarios SET Nombre = ?, Rol = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+      const { Nombre, Rol, password } = data;
+      // allow updating password optionally
+      let sql, params;
+      if (typeof password !== 'undefined') {
+        sql = 'UPDATE usuarios SET Nombre = ?, Rol = ?, password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+        params = [Nombre, Rol, password, id];
+      } else {
+        sql = 'UPDATE usuarios SET Nombre = ?, Rol = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+        params = [Nombre, Rol, id];
+      }
       
-      db.run(sql, [Nombre, Rol, id], function(err) {
+      db.run(sql, params, function(err) {
         if (err) {
           reject(err);
         } else {

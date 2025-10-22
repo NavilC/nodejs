@@ -27,6 +27,7 @@ const createTables = () => {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         Nombre TEXT NOT NULL,
         Rol TEXT NOT NULL,
+        password TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
@@ -88,7 +89,19 @@ const createTables = () => {
         completed++;
         if (completed === total) {
           console.log('All tables created successfully');
-          insertSampleData().then(resolve).catch(reject);
+          // Ensure usuarios table has password column (for upgrades)
+          db.all("PRAGMA table_info(usuarios)", (err, cols) => {
+            if (err) { console.error('Error reading table info:', err.message); insertSampleData().then(resolve).catch(reject); return; }
+            const hasPassword = cols && cols.some(c => c.name && c.name.toLowerCase() === 'password');
+            if (!hasPassword) {
+              db.run("ALTER TABLE usuarios ADD COLUMN password TEXT", (alterErr) => {
+                if (alterErr) console.error('Error adding password column:', alterErr.message);
+                insertSampleData().then(resolve).catch(reject);
+              });
+            } else {
+              insertSampleData().then(resolve).catch(reject);
+            }
+          });
         }
       });
     });

@@ -3,13 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Historial simple - sin CSS</title>
-  <link rel="stylesheet" href="historial-simple.css">
+  <title>Historial De Envios</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+ <link rel="stylesheet" href="historial-simple.css">
 </head>
 <body>
   <div class="container">
-    <h1>Historial de Envíos</h1>
-    <p class="small-note"><a href="index.html">Volver al formulario</a></p>
+    <header>
+      <h1><i class="fas fa-history"></i> Historial de Envíos</h1>
+      <a href="index.html" class="btn"><i class="fas fa-arrow-left"></i> Volver al formulario</a>
+    </header>
 
     <div id="container"></div>
   </div>
@@ -63,46 +66,153 @@
         }
         container.innerHTML = '';
         pases.forEach(pase => {
-          const card = document.createElement('div');
-          card.style.border = '1px solid #ccc';
-          card.style.padding = '8px';
-          card.style.margin = '8px 0';
+          // Crear tarjeta usando las clases del CSS
+          const card = document.createElement('div'); 
+          card.className = 'card';
 
-          const h = el('div'); h.textContent = `Pase #${pase.id} - ${pase.proyecto_nombre || ''}`;
-          const d1 = el('div', 'Fecha: ' + (pase.created_at ? new Date(pase.created_at).toLocaleString() : 'N/A'));
-          const d2 = el('div', 'Usuario: ' + (pase.usuario_nombre || 'N/A'));
-          const d3 = el('div', 'Orden de Venta: ' + (pase.orden_venta || 'N/A'));
+          // Header
+          const header = document.createElement('div'); 
+          header.className = 'card-header';
+          
+          const title = document.createElement('div'); 
+          title.className = 'card-title'; 
+          title.innerHTML = `<i class="fas fa-shipping-fast"></i> Pase #${pase.id} - ${pase.proyecto_nombre || ''}`;
+          
+          const headerRight = document.createElement('div');
+          headerRight.style.display = 'flex'; 
+          headerRight.style.alignItems = 'center'; 
+          headerRight.style.gap = '12px';
+          
+          const dateDiv = document.createElement('div'); 
+          dateDiv.className = 'card-date'; 
+          dateDiv.innerHTML = `<i class="far fa-clock"></i> ${pase.created_at ? new Date(pase.created_at).toLocaleString() : 'N/A'}`;
+          
+          const modifyBtn = document.createElement('button'); 
+          modifyBtn.className = 'btn'; 
+          modifyBtn.innerHTML = '<i class="fas fa-edit"></i> Modificar';
+          
+          headerRight.appendChild(dateDiv); 
+          headerRight.appendChild(modifyBtn);
+          header.appendChild(title); 
+          header.appendChild(headerRight);
 
-          const btn = el('button','Modificar');
-          btn.onclick = () => toggleForm(pase.id);
+          // Body
+          const body = document.createElement('div'); 
+          body.className = 'card-body';
+          
+          const infoGrid = document.createElement('div'); 
+          infoGrid.className = 'info-grid';
+          
+          const infoUsuario = document.createElement('div'); 
+          infoUsuario.className = 'info-item'; 
+          infoUsuario.innerHTML = `<span class="info-label">Usuario</span><span class="info-value">${pase.usuario_nombre || 'N/A'}</span>`;
+          
+          const infoOrden = document.createElement('div'); 
+          infoOrden.className = 'info-item'; 
+          infoOrden.innerHTML = `<span class="info-label">Orden de Venta</span><span class="info-value">${pase.orden_venta || 'N/A'}</span>`;
+          
+          const infoProyecto = document.createElement('div'); 
+          infoProyecto.className = 'info-item'; 
+          infoProyecto.innerHTML = `<span class="info-label">Proyecto</span><span class="info-value">${pase.proyecto_nombre || ''}</span>`;
+          
+          const infoEstado = document.createElement('div'); 
+          infoEstado.className = 'info-item'; 
+          infoEstado.innerHTML = `<span class="info-label">Estado</span><span class="info-value"><span class="status-badge status-active">Activo</span></span>`;
+          
+          infoGrid.appendChild(infoUsuario); 
+          infoGrid.appendChild(infoOrden); 
+          infoGrid.appendChild(infoProyecto); 
+          infoGrid.appendChild(infoEstado);
+          body.appendChild(infoGrid);
 
-          // botón de editar piezas eliminado (la sección se abre al hacer 'Modificar')
+          // Formulario inline
+          const form = document.createElement('form'); 
+          form.id = 'form-'+pase.id; 
+          form.style.display = 'none'; 
+          form.className = 'form-inline';
+          
+          const row = document.createElement('div'); 
+          row.className = 'form-row';
+          
+          const g1 = document.createElement('div'); 
+          g1.className = 'form-group'; 
+          const label1 = document.createElement('label'); 
+          label1.className = 'form-label'; 
+          label1.textContent = 'Proyecto'; 
+          const inProyecto = document.createElement('input'); 
+          inProyecto.className='form-input'; 
+          inProyecto.name='proyecto'; 
+          inProyecto.placeholder='Nombre proyecto'; 
+          inProyecto.value = pase.proyecto_nombre || ''; 
+          g1.appendChild(label1); 
+          g1.appendChild(inProyecto);
+          
+          const g2 = document.createElement('div'); 
+          g2.className = 'form-group'; 
+          const label2 = document.createElement('label'); 
+          label2.className='form-label'; 
+          label2.textContent='Orden de Venta'; 
+          const inOrden = document.createElement('input'); 
+          inOrden.className='form-input'; 
+          inOrden.name='orden'; 
+          inOrden.placeholder='Orden de Venta'; 
+          inOrden.value = pase.orden_venta || ''; 
+          g2.appendChild(label2); 
+          g2.appendChild(inOrden);
+          
+          const g3 = document.createElement('div'); 
+          g3.className = 'form-group'; 
+          const label3 = document.createElement('label'); 
+          label3.className='form-label'; 
+          label3.textContent='Usuario'; 
+          const inUsuario = document.createElement('input'); 
+          inUsuario.className='form-input'; 
+          inUsuario.name='usuario'; 
+          inUsuario.placeholder='Nombre usuario'; 
+          inUsuario.value = pase.usuario_nombre || ''; 
+          g3.appendChild(label3); 
+          g3.appendChild(inUsuario);
+          
+          const g4 = document.createElement('div'); 
+          g4.className = 'form-group'; 
+          const label4 = document.createElement('label'); 
+          label4.className='form-label'; 
+          label4.textContent='Fecha (no se envía al servidor)'; 
+          const inFecha = document.createElement('input'); 
+          inFecha.className='form-input'; 
+          inFecha.type='date'; 
+          inFecha.name='fecha'; 
+          if (pase.created_at) inFecha.value = new Date(pase.created_at).toISOString().split('T')[0]; 
+          g4.appendChild(label4); 
+          g4.appendChild(inFecha);
+          
+          row.appendChild(g1); 
+          row.appendChild(g2); 
+          row.appendChild(g3); 
+          row.appendChild(g4);
+          form.appendChild(row);
+          
+          const actions = document.createElement('div'); 
+          actions.className='form-actions'; 
+          const save = document.createElement('button'); 
+          save.className='btn'; 
+          save.type='submit'; 
+          save.innerHTML='<i class="fas fa-save"></i> Guardar'; 
+          const cancel = document.createElement('button'); 
+          cancel.className='btn btn-secondary'; 
+          cancel.type='button'; 
+          cancel.innerHTML='<i class="fas fa-times"></i> Cancelar'; 
+          cancel.onclick = (e)=>{ e.preventDefault(); form.style.display='none'; };
+          
+          actions.appendChild(save); 
+          actions.appendChild(cancel); 
+          form.appendChild(actions);
 
-          const form = document.createElement('form');
-          form.id = 'form-'+pase.id;
-          form.style.display = 'none';
-          form.style.marginTop = '8px';
-
-          const inProyecto = document.createElement('input'); inProyecto.name='proyecto'; inProyecto.placeholder='Nombre proyecto'; inProyecto.value = pase.proyecto_nombre || '';
-          const inOrden = document.createElement('input'); inOrden.name='orden'; inOrden.placeholder='Orden de Venta'; inOrden.value = pase.orden_venta || '';
-          const inUsuario = document.createElement('input'); inUsuario.name='usuario'; inUsuario.placeholder='Nombre usuario'; inUsuario.value = pase.usuario_nombre || '';
-          const inFecha = document.createElement('input'); inFecha.type='date'; inFecha.name='fecha';
-          if (pase.created_at) inFecha.value = new Date(pase.created_at).toISOString().split('T')[0];
-
-          const save = el('button','Guardar'); save.type='submit';
-          const cancel = el('button','Cancelar'); cancel.type='button'; cancel.onclick = (e)=>{ e.preventDefault(); form.style.display='none'; };
-
-          form.appendChild(el('div', 'Proyecto:')); form.appendChild(inProyecto);
-          form.appendChild(el('div', 'Orden de Venta:')); form.appendChild(inOrden);
-          form.appendChild(el('div', 'Usuario:')); form.appendChild(inUsuario);
-          form.appendChild(el('div', 'Fecha (no se envía al servidor):')); form.appendChild(inFecha);
-          form.appendChild(save); form.appendChild(cancel);
-
+          // Comportamiento onsubmit
           form.onsubmit = async (e)=>{
             e.preventDefault();
             try {
               save.disabled = true;
-              // buscar proyecto
               const proyectos = await fetchData('proyectos');
               let proyecto = proyectos.find(p=>p.Nombre === inProyecto.value || String(p['Orden de Venta']) === inOrden.value);
               let proyectoId;
@@ -111,7 +221,6 @@
                 const resp = await postData('proyectos', { 'Orden de Venta': inOrden.value ? parseInt(inOrden.value):0, Nombre: inProyecto.value || 'Sin nombre', SEC: 0 });
                 proyectoId = resp.data ? resp.data.id : resp.data;
               }
-              // buscar usuario
               const usuarios = await fetchData('usuarios');
               let usuario = usuarios.find(u=>u.Nombre === inUsuario.value);
               let usuarioId;
@@ -120,51 +229,36 @@
                 const r = await postData('usuarios', { Nombre: inUsuario.value || 'Usuario', Rol: 'Usuario' });
                 usuarioId = r.data ? r.data.id : r.data;
               }
-              // PUT pase
               await putData('pase-salida', pase.id, { idProyecto: proyectoId, idUsuarios: usuarioId });
-              // Actualizar cantidades de detalles que hayan cambiado
               await updateDetallesOnSave(pase.id);
               showToast('Actualizado correctamente', 'success');
               load();
-            } catch(err){
-              showToast('Error: '+err.message, 'error');
-            } finally { save.disabled = false; }
+            } catch(err){ showToast('Error: '+err.message, 'error'); } finally { save.disabled = false; }
           };
 
           // Contenedor para detalles (piezas)
-          const detallesContainer = document.createElement('div');
-          detallesContainer.id = 'detalles-container-' + pase.id;
-          detallesContainer.style.marginTop = '8px';
+          const detallesContainer = document.createElement('div'); 
+          detallesContainer.id = 'detalles-container-' + pase.id; 
+          detallesContainer.style.marginTop = '8px'; 
           detallesContainer.style.display = 'none';
 
-          card.appendChild(h); card.appendChild(d1); card.appendChild(d2); card.appendChild(d3); card.appendChild(btn); card.appendChild(form); card.appendChild(detallesContainer);
+          body.appendChild(form);
+          body.appendChild(detallesContainer);
+          card.appendChild(header); 
+          card.appendChild(body);
           container.appendChild(card);
 
-          function toggleForm(pid){
+          // Toggle del formulario al pulsar el botón
+          modifyBtn.onclick = () => {
             // Cerrar otros formularios y detalles abiertos
-            document.querySelectorAll('form[id^="form-"]').forEach(ff => { if (ff.id !== 'form-'+pid) ff.style.display = 'none'; });
-            document.querySelectorAll('[id^="detalles-container-"]').forEach(dc => { if (dc.id !== 'detalles-container-'+pid) dc.style.display = 'none'; });
-
-            const f = document.getElementById('form-'+pid);
-            const cont = document.getElementById('detalles-container-' + pid);
-            if (!f) return;
-            const willOpen = (f.style.display === 'none');
-            // Alternar formulario
-            f.style.display = willOpen ? 'block' : 'none';
-            // Si se abre el formulario, asegurarse de que también se abran las piezas
+            document.querySelectorAll('form[id^="form-"]').forEach(ff => { if (ff.id !== 'form-'+pase.id) ff.style.display = 'none'; });
+            document.querySelectorAll('[id^="detalles-container-"]').forEach(dc => { if (dc.id !== 'detalles-container-'+pase.id) dc.style.display = 'none'; });
+            const willOpen = (form.style.display === 'none');
+            form.style.display = willOpen ? 'block' : 'none';
             if (willOpen) {
-              // Si el contenedor de detalles está vacío o cerrado, cargarlo
-              if (cont) {
-                if (cont.style.display !== 'block') {
-                  // llamar a la función pública toggleDetalles para cargar y mostrar
-                  toggleDetalles(pid);
-                }
-              }
-            } else {
-              // si se cierra el formulario, cerrar también detalles
-              if (cont) cont.style.display = 'none';
-            }
-          }
+              if (detallesContainer && detallesContainer.style.display !== 'block') toggleDetalles(pase.id);
+            } else { if (detallesContainer) detallesContainer.style.display = 'none'; }
+          };
         });
 
         // Toggle y carga de detalles (piezas) para un pase
@@ -189,32 +283,59 @@
 
         function renderDetalles(container, paseId, detalles) {
           container.innerHTML = '';
-          const list = document.createElement('div');
-          if (!detalles || detalles.length === 0) list.innerHTML = '<div>No hay piezas en este pase</div>';
-          else {
+          
+          // Título de la sección
+          const title = document.createElement('h3');
+          title.innerHTML = '<i class="fas fa-boxes"></i> Piezas';
+          container.appendChild(title);
+          
+          const piecesList = document.createElement('div');
+          piecesList.className = 'pieces-list';
+          
+          if (!detalles || detalles.length === 0) {
+            piecesList.innerHTML = '<p>No hay piezas en este pase</p>';
+          } else {
             detalles.forEach(d => {
-              const row = document.createElement('div');
-              row.style.borderTop = '1px solid #ddd';
-              row.style.padding = '6px 0';
-
+              const pieceItem = document.createElement('div');
+              pieceItem.className = 'piece-item';
+              
               // Info de la pieza
-              const info = document.createElement('span');
-              info.textContent = `${d.pieza_tipo || d.Tipo || 'Pieza'} - ${d.pieza_marca || d.Marca || ''}`;
-
-              // Input para editar cantidad (se guardará junto con el pase)
+              const pieceInfo = document.createElement('div');
+              pieceInfo.className = 'piece-info';
+              
+              const pieceName = document.createElement('span');
+              pieceName.className = 'piece-name';
+              pieceName.textContent = `${d.pieza_tipo || d.Tipo || 'Pieza'} - ${d.pieza_marca || d.Marca || ''}`;
+              
+              const pieceDetails = document.createElement('span');
+              pieceDetails.className = 'piece-details';
+              
+              // Input para editar cantidad
               const qtyInput = document.createElement('input');
               qtyInput.type = 'number';
               qtyInput.min = '1';
               qtyInput.value = (d.Cantidad != null ? d.Cantidad : 1);
-              qtyInput.style.marginLeft = '8px';
+              qtyInput.className = 'form-input';
               qtyInput.style.width = '80px';
               // Marcar cantidad original y referencias para detectar cambios al guardar
               qtyInput.dataset.original = String(d.Cantidad != null ? d.Cantidad : 1);
               qtyInput.dataset.detalleId = String(d.id);
               qtyInput.dataset.detallePiezaId = String(d.idDetallePieza);
-
-              // Botón eliminar sigue disponible
-              const del = document.createElement('button'); del.textContent = 'Eliminar'; del.style.marginLeft = '8px';
+              
+              pieceDetails.appendChild(document.createTextNode('Cantidad: '));
+              pieceDetails.appendChild(qtyInput);
+              
+              pieceInfo.appendChild(pieceName);
+              pieceInfo.appendChild(pieceDetails);
+              
+              // Botón eliminar
+              const pieceActions = document.createElement('div');
+              pieceActions.className = 'piece-actions';
+              
+              const del = document.createElement('button'); 
+              del.className = 'btn-icon'; 
+              del.title = 'Eliminar';
+              del.innerHTML = '<i class="fas fa-trash"></i>';
               del.onclick = async () => {
                 if (!confirm('Eliminar esta pieza del pase?')) return;
                 try {
@@ -224,24 +345,79 @@
                   toggleDetalles(paseId); // recargar
                 } catch(e){ showToast('Error: '+e.message, 'error'); }
               };
-
-              row.appendChild(info);
-              row.appendChild(qtyInput);
-              row.appendChild(del);
-              list.appendChild(row);
+              
+              pieceActions.appendChild(del);
+              
+              pieceItem.appendChild(pieceInfo);
+              pieceItem.appendChild(pieceActions);
+              piecesList.appendChild(pieceItem);
             });
           }
+          
+          container.appendChild(piecesList);
 
           // Form para añadir nueva pieza
-          const addForm = document.createElement('form');
-          addForm.style.marginTop = '8px';
-          const inTipo = document.createElement('input'); inTipo.placeholder='Tipo de pieza'; inTipo.required=true;
-          const inMarca = document.createElement('input'); inMarca.placeholder='Marca'; inMarca.required=true;
-          const inCant = document.createElement('input'); inCant.type='number'; inCant.min='1'; inCant.placeholder='Cantidad'; inCant.required=true;
-          const addBtn = document.createElement('button'); addBtn.textContent = 'Agregar pieza'; addBtn.type='submit';
-          addForm.appendChild(document.createTextNode('Agregar pieza: '));
-          addForm.appendChild(inTipo); addForm.appendChild(inMarca); addForm.appendChild(inCant); addForm.appendChild(addBtn);
+          const addForm = document.createElement('div');
+          addForm.className = 'add-piece-form';
+          
+          const formTitle = document.createElement('h4');
+          formTitle.innerHTML = '<i class="fas fa-plus-circle"></i> Agregar Pieza';
+          addForm.appendChild(formTitle);
+          
+          const formRow = document.createElement('div');
+          formRow.className = 'form-row';
+          
+          const tipoGroup = document.createElement('div');
+          tipoGroup.className = 'form-group';
+          const tipoLabel = document.createElement('label');
+          tipoLabel.className = 'form-label';
+          tipoLabel.textContent = 'Tipo de pieza';
+          const inTipo = document.createElement('input'); 
+          inTipo.className = 'form-input';
+          inTipo.placeholder='Tipo de pieza'; 
+          inTipo.required=true;
+          tipoGroup.appendChild(tipoLabel);
+          tipoGroup.appendChild(inTipo);
+          
+          const marcaGroup = document.createElement('div');
+          marcaGroup.className = 'form-group';
+          const marcaLabel = document.createElement('label');
+          marcaLabel.className = 'form-label';
+          marcaLabel.textContent = 'Marca';
+          const inMarca = document.createElement('input'); 
+          inMarca.className = 'form-input';
+          inMarca.placeholder='Marca'; 
+          inMarca.required=true;
+          marcaGroup.appendChild(marcaLabel);
+          marcaGroup.appendChild(inMarca);
+          
+          const cantGroup = document.createElement('div');
+          cantGroup.className = 'form-group';
+          const cantLabel = document.createElement('label');
+          cantLabel.className = 'form-label';
+          cantLabel.textContent = 'Cantidad';
+          const inCant = document.createElement('input'); 
+          inCant.className = 'form-input';
+          inCant.type='number'; 
+          inCant.min='1'; 
+          inCant.placeholder='Cantidad'; 
+          inCant.required=true;
+          cantGroup.appendChild(cantLabel);
+          cantGroup.appendChild(inCant);
+          
+          formRow.appendChild(tipoGroup);
+          formRow.appendChild(marcaGroup);
+          formRow.appendChild(cantGroup);
+          addForm.appendChild(formRow);
+          
+          const addBtn = document.createElement('button'); 
+          addBtn.className = 'btn';
+          addBtn.innerHTML = '<i class="fas fa-plus"></i> Agregar pieza';
+          
+          addForm.appendChild(addBtn);
+          container.appendChild(addForm);
 
+          // Evento para agregar pieza
           addForm.onsubmit = async (e) => {
             e.preventDefault();
             try {
@@ -270,9 +446,9 @@
               showToast('Error: '+err.message, 'error');
             } finally { addBtn.disabled = false; }
           };
-
-          container.appendChild(list);
-          container.appendChild(addForm);
+          
+          // Convertir en formulario funcional
+          addBtn.onclick = () => addForm.onsubmit({preventDefault: () => {}});
         }
       } catch (e) {
         console.error(e);
@@ -282,7 +458,7 @@
 
     load();
 
-    // Simple toast implementation (para esta página)
+    // Simple toast implementation
     function showToast(message, type = 'success') {
       const container = document.getElementById('toastContainer');
       if (!container) return;
